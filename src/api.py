@@ -33,7 +33,7 @@ class HeadHunterAPI(BaseHeadHunterAPI):
         self.__url: str = 'https://api.hh.ru/vacancies'
         self.__headers: dict = {'User-Agent': 'HH-User-Agent'}
         self.__params: dict = {'employer_id': '', 'area': 113, 'page': 0, 'per_page': 100}
-        self.__companies_with_vacancies: list[dict] = []
+        self.__companies_with_vacancies: dict = {}
 
     def _BaseHeadHunterAPI__get_response(self, url: str, headers: dict, params: dict) -> Any:
         """
@@ -65,7 +65,7 @@ class HeadHunterAPI(BaseHeadHunterAPI):
             print(f"Ошибка при запросе: {e}")
             return None
 
-    def get_companies_with_vacancies(self, companies: list[str]) -> list[dict]:
+    def get_companies_with_vacancies(self, companies: list[str]) -> dict:
         """
         Получение списка вакансий в виде словарей, где ключ - это компания,
         а значение - это список вакансий этой компании
@@ -90,7 +90,7 @@ class HeadHunterAPI(BaseHeadHunterAPI):
                 except KeyError:
                     continue
 
-                self.__companies_with_vacancies.append({company: [vacancies]})
+                self.__companies_with_vacancies[company] = [vacancies]
                 self.__params['page'] += 1
             elif response.status_code == 403:
                 time.sleep(5)
@@ -102,7 +102,7 @@ class HeadHunterAPI(BaseHeadHunterAPI):
                 except KeyError:
                     continue
 
-                self.__companies_with_vacancies.append({company: [vacancies]})
+                self.__companies_with_vacancies[company].append(vacancies)
                 self.__params['page'] += 1
             else:
                 continue
@@ -115,7 +115,7 @@ class HeadHunterAPI(BaseHeadHunterAPI):
                         vacancies = response.json()['items']
                     except KeyError:
                         continue
-                    self.__companies_with_vacancies[-1][company].append(vacancies)
+                    self.__companies_with_vacancies[company].append(vacancies)
                     self.__params['page'] += 1
                 elif response.status_code == 403:
                     time.sleep(5)
@@ -127,7 +127,7 @@ class HeadHunterAPI(BaseHeadHunterAPI):
                     except KeyError:
                         continue
 
-                    self.__companies_with_vacancies[-1][company].append(vacancies)
+                    self.__companies_with_vacancies[company].append(vacancies)
                     self.__params['page'] += 1
                 else:
                     break
@@ -135,7 +135,7 @@ class HeadHunterAPI(BaseHeadHunterAPI):
         return self.__companies_with_vacancies
 
     @property
-    def companies_with_vacancies(self) -> list[dict]:
+    def companies_with_vacancies(self) -> dict:
         """ Геттер для компаний с вакансиями """
 
         return self.__companies_with_vacancies
