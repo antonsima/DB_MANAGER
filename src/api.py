@@ -78,9 +78,13 @@ class HeadHunterAPI(BaseHeadHunterAPI):
 
             companies_with_id[company] = company_id
 
+        # print(companies_with_id)
+
         for company, company_id in companies_with_id.items():
+
             self.__params['employer_id'] = company_id
             self.__params['page'] = 0
+            # print(f'Попытка для {company} номер 0')
 
             response = self._BaseHeadHunterAPI__get_response(self.__url, self.__headers, self.__params)
 
@@ -88,11 +92,14 @@ class HeadHunterAPI(BaseHeadHunterAPI):
                 try:
                     vacancies = response.json()['items']
                 except KeyError:
+                    # print('KeyError')
                     continue
 
                 self.__companies_with_vacancies[company] = [vacancies]
                 self.__params['page'] += 1
             elif response.status_code == 403:
+                # print('Ошибка 403')
+
                 time.sleep(5)
 
                 response = self._BaseHeadHunterAPI__get_response(self.__url, self.__headers, self.__params)
@@ -100,24 +107,30 @@ class HeadHunterAPI(BaseHeadHunterAPI):
                 try:
                     vacancies = response.json()['items']
                 except KeyError:
+                    # print('KeyError')
                     continue
 
                 self.__companies_with_vacancies[company].append(vacancies)
                 self.__params['page'] += 1
             else:
+                # print('Неизвестный статус код')
                 continue
 
             while self.__params.get('page') != 20:
                 response = self._BaseHeadHunterAPI__get_response(self.__url, self.__headers, self.__params)
 
+                # print(f'Попытка для {company} номер {self.__params.get('page')}')
+
                 if response.status_code == 200:
                     try:
                         vacancies = response.json()['items']
                     except KeyError:
+                        # print('KeyError')
                         continue
                     self.__companies_with_vacancies[company].append(vacancies)
                     self.__params['page'] += 1
                 elif response.status_code == 403:
+                    # print('Ошибка 403')
                     time.sleep(5)
 
                     response = self._BaseHeadHunterAPI__get_response(self.__url, self.__headers, self.__params)
@@ -125,6 +138,7 @@ class HeadHunterAPI(BaseHeadHunterAPI):
                     try:
                         vacancies = response.json()['items']
                     except KeyError:
+                        # print('KeyError')
                         continue
 
                     self.__companies_with_vacancies[company].append(vacancies)
