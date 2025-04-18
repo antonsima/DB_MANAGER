@@ -191,4 +191,28 @@ organizations.company_name, vacancies.vacancy_title;
 
         return vacancies
 
+    def get_avg_salary(self):
+
+        query = """
+SELECT 
+AVG(salary_from) AS avg_from
+FROM 
+vacancies
+"""
+        conn = db.connect(
+            host=self.__host,
+            database=self.__database,
+            user=self.__user,
+            password=self.__password
+        )
+
+        cur = conn.cursor()
+        cur.execute(query)
+
+        result = cur.fetchone()
+
+        cur.close()
+        conn.close()
+
+        return round(float(result[0]), 2)
 
