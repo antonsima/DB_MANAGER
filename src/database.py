@@ -115,7 +115,6 @@ CONSTRAINT fk_vacancies_organisations FOREIGN KEY(organization_id) REFERENCES or
     def get_companies_and_vacancies_count(self):
         query = """
 SELECT 
-organisations.organization_id,
 organisations.company_name,
 COUNT(vacancies.organization_id) AS vacancies_count
 FROM 
@@ -143,12 +142,53 @@ vacancies_count DESC;
         companies = []
         for row in results:
             companies.append({
-                "organization_id": row[0],
-                "company_name": row[1],
-                "vacancies_count": row[2]
+                "company_name": row[0],
+                "vacancies_count": row[1]
             })
 
         cur.close()
         conn.close()
 
         return companies
+
+    def get_all_vacancies(self):
+        query = """
+SELECT
+organisations.company_name,
+vacancies.vacancy_title,
+vacancies.salary_from,
+vacancies.vacancy_url
+FROM 
+vacancies
+JOIN 
+organizations ON vacancies.organisation_id = organizations.id
+ORDER BY 
+organizations.company_name, vacancies.vacancy_title;
+"""
+        conn = db.connect(
+            host=self.__host,
+            database=self.__database,
+            user=self.__user,
+            password=self.__password
+        )
+
+        cur = conn.cursor()
+        cur.execute(query)
+
+        results = cur.fetchall()
+
+        vacancies = []
+        for row in results:
+            vacancies.append({
+                "company_name": row[0],
+                "vacancy_title": row[1],
+                "salary_from": row[2],
+                "vacancy_url": row[3]
+            })
+
+        cur.close()
+        conn.close()
+
+        return vacancies
+
+
