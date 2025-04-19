@@ -171,3 +171,4 @@ data/
 json/
 
 FOR_TEST_ONLY.py
+FOR_TEST_ONLY_DATA.json

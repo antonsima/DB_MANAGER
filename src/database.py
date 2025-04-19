@@ -24,22 +24,25 @@ class BaseDBManager(ABC):
         pass
 
     @abstractmethod
-    def get_vacancies_with_keyword(self):
+    def get_vacancies_with_keyword(self, keyword):
         pass
 
 
 class DBManager(BaseDBManager):
     def __init__(self, companies_with_vacancies: dict) -> None:
-        self.organisations = companies_with_vacancies
+        self.organizations = companies_with_vacancies
         load_dotenv()
         self.__host = os.getenv('HOST')
         self.__database = os.getenv('DATABASE')
         self.__user = os.getenv('USER')
         self.__password = os.getenv('PASSWORD')
 
-    def create_organisations_table(self):
+        self.create_organizations_table()
+        self.create_vacancies_table()
+
+    def create_organizations_table(self):
         create_table_query = '''
-DROP TABLE IF EXISTS organizations;
+DROP TABLE IF EXISTS organizations CASCADE;
 CREATE TABLE organizations
 (
 organization_id SERIAL PRIMARY KEY,
@@ -55,8 +58,8 @@ company_name VARCHAR(255) NOT NULL
         cur = conn.cursor()
         cur.execute(create_table_query)
 
-        for organisation_name in self.organisations.keys():
-            cur.execute('INSERT INTO organizations (company_name) VALUES (%s);', organisation_name)
+        for organization_name in self.organizations.keys():
+            cur.execute('INSERT INTO organizations (company_name) VALUES (%s);', (organization_name, ))
 
         conn.commit()
 
@@ -68,13 +71,13 @@ company_name VARCHAR(255) NOT NULL
 DROP TABLE IF EXISTS vacancies;
 CREATE TABLE vacancies
 (
+vacancy_id SERIAL PRIMARY KEY,
 organization_id INT,
-company_name VARCHAR(100) NOT NULL,
 vacancy_title VARCHAR(100) NOT NULL,
-salary_from VARCHAR(50),
+salary_from NUMERIC,
 vacancy_url VARCHAR(255) NOT NULL,
 
-CONSTRAINT fk_vacancies_organisations FOREIGN KEY(organization_id) REFERENCES organisations(organization_id)
+CONSTRAINT fk_vacancies_organizations FOREIGN KEY(organization_id) REFERENCES organizations(organization_id)
 );
 '''
         conn = db.connect(
@@ -88,21 +91,24 @@ CONSTRAINT fk_vacancies_organisations FOREIGN KEY(organization_id) REFERENCES or
 
         org_id = 1
 
-        for organisation_name, vacancies in self.organisations.items():
+        for organization_name, vacancies in self.organizations.items():
             for vacancy in vacancies:
 
                 vacancy_title = vacancy['name']
 
                 try:
                     salary_from = vacancy['salary']['from']
+
+                    if not salary_from:
+                        salary_from = 0
                 except (KeyError, TypeError):
                     salary_from = 0
 
                 vacancy_url = vacancy['alternate_url']
 
                 cur.execute(
-                    'INSERT INTO vacancies (organization_id, company_name, vacancy_title, salary_from, vacancy_url) VALUES (%s, %s, %s, %s, %s);',
-                    (org_id, organisation_name, vacancy_title, salary_from, vacancy_url))
+                    'INSERT INTO vacancies (organization_id, vacancy_title, salary_from, vacancy_url) VALUES (%s, %s, %s, %s);',
+                    (org_id, vacancy_title, salary_from, vacancy_url))
 
             org_id += 1
 
@@ -115,14 +121,14 @@ CONSTRAINT fk_vacancies_organisations FOREIGN KEY(organization_id) REFERENCES or
     def get_companies_and_vacancies_count(self):
         query = """
 SELECT 
-organisations.company_name,
+organizations.company_name,
 COUNT(vacancies.organization_id) AS vacancies_count
 FROM 
 organizations
 LEFT JOIN 
-vacancies ON organisations.organization_id = vacancies.organization_id
+vacancies ON organizations.organization_id = vacancies.organization_id
 GROUP BY 
-organisations.organization_id, organisations.company_name
+organizations.organization_id, organizations.company_name
 ORDER BY 
 vacancies_count DESC;
 """
@@ -145,6 +151,7 @@ vacancies_count DESC;
                 "company_name": row[0],
                 "vacancies_count": row[1]
             })
+            print(f'{row[0]}, Всего вакансий {row[1]}')
 
         cur.close()
         conn.close()
@@ -154,16 +161,16 @@ vacancies_count DESC;
     def get_all_vacancies(self):
         query = """
 SELECT
-organisations.company_name,
+organizations.company_name,
 vacancies.vacancy_title,
 vacancies.salary_from,
 vacancies.vacancy_url
 FROM 
 vacancies
 JOIN 
-organizations ON vacancies.organisation_id = organizations.id
+organizations ON vacancies.organization_id = organizations.organization_id
 ORDER BY 
-organizations.company_name, vacancies.vacancy_title;
+salary_from;
 """
         conn = db.connect(
             host=self.__host,
@@ -175,16 +182,18 @@ organizations.company_name, vacancies.vacancy_title;
         cur = conn.cursor()
         cur.execute(query)
 
-        results = cur.fetchall()
+        result = cur.fetchall()
 
         vacancies = []
-        for row in results:
+        for row in result:
             vacancies.append({
                 "company_name": row[0],
                 "vacancy_title": row[1],
                 "salary_from": row[2],
                 "vacancy_url": row[3]
             })
+
+            print(f'{row[0]}, {row[1]}, Зарплата от {row[2]}, {row[3]}')
 
         cur.close()
         conn.close()
@@ -210,9 +219,81 @@ vacancies
         cur.execute(query)
 
         result = cur.fetchone()
+        print(f'Средняя зарплата по всем вакансиям = {round(float(result[0]), 2)}р.')
 
         cur.close()
         conn.close()
 
         return round(float(result[0]), 2)
 
+    def get_vacancies_with_higher_salary(self):
+        avg_salary = self.get_avg_salary()
+
+        query = f"""
+SELECT
+*
+FROM vacancies
+JOIN organizations USING(organization_id)
+WHERE salary_from > {avg_salary}
+ORDER BY salary_from
+"""
+        conn = db.connect(
+            host=self.__host,
+            database=self.__database,
+            user=self.__user,
+            password=self.__password
+        )
+
+        cur = conn.cursor()
+        cur.execute(query)
+
+        result = cur.fetchall()
+
+        vacancies = []
+
+        for row in result:
+            vacancies.append({
+                "company_name": row[5],
+                "vacancy_title": row[2],
+                "salary_from": int(row[3]),
+                "vacancy_url": row[4]
+            })
+
+            print(f'{row[5]}, {row[2]}, Зарплата от {int(row[3])}, {row[4]}')
+
+        return vacancies
+
+    def get_vacancies_with_keyword(self, keyword):
+        query = """
+SELECT *
+FROM vacancies
+JOIN organizations USING(organization_id)
+WHERE vacancy_title ILIKE %s
+ORDER BY salary_from
+"""
+        conn = db.connect(
+            host=self.__host,
+            database=self.__database,
+            user=self.__user,
+            password=self.__password
+        )
+
+        cur = conn.cursor()
+
+        search_pattern = f"%{keyword}%"
+        cur.execute(query, (search_pattern,))
+
+        result = cur.fetchall()
+
+        vacancies = []
+
+        for row in result:
+            vacancies.append({
+                "company_name": row[5],
+                "vacancy_title": row[2],
+                "salary_from": int(row[3]),
+                "vacancy_url": row[4]
+            })
+            print(f'{row[5]}, {row[2]}, Зарплата от {int(row[3])}, {row[4]}')
+
+        return vacancies
