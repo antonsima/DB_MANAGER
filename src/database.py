@@ -1,5 +1,6 @@
 import os
 from abc import ABC, abstractmethod
+
 import psycopg2 as db
 from dotenv import load_dotenv
 
@@ -8,23 +9,23 @@ class BaseDBManager(ABC):
     """ Абстрактный класс для DBManager """
 
     @abstractmethod
-    def get_companies_and_vacancies_count(self):
+    def get_companies_and_vacancies_count(self) -> list[dict]:
         pass
 
     @abstractmethod
-    def get_all_vacancies(self):
+    def get_all_vacancies(self) -> list[dict]:
         pass
 
     @abstractmethod
-    def get_avg_salary(self):
+    def get_avg_salary(self) -> float:
         pass
 
     @abstractmethod
-    def get_vacancies_with_higher_salary(self):
+    def get_vacancies_with_higher_salary(self) -> list[dict]:
         pass
 
     @abstractmethod
-    def get_vacancies_with_keyword(self, keyword):
+    def get_vacancies_with_keyword(self, keyword: str) -> list[dict]:
         pass
 
 
@@ -40,7 +41,11 @@ class DBManager(BaseDBManager):
         self.create_organizations_table()
         self.create_vacancies_table()
 
-    def create_organizations_table(self):
+    def create_organizations_table(self) -> None:
+        """
+        Создает таблицу organizations. Если такая существует, она удаляется
+        """
+
         create_table_query = '''
 DROP TABLE IF EXISTS organizations CASCADE;
 CREATE TABLE organizations
@@ -66,7 +71,11 @@ company_name VARCHAR(255) NOT NULL
         cur.close()
         conn.close()
 
-    def create_vacancies_table(self):
+    def create_vacancies_table(self) -> None:
+        """
+        Создает таблицу vacancies. Если такая существует, она удаляется
+        """
+
         create_table_query = '''
 DROP TABLE IF EXISTS vacancies;
 CREATE TABLE vacancies
@@ -107,29 +116,34 @@ CONSTRAINT fk_vacancies_organizations FOREIGN KEY(organization_id) REFERENCES or
                 vacancy_url = vacancy['alternate_url']
 
                 cur.execute(
-                    'INSERT INTO vacancies (organization_id, vacancy_title, salary_from, vacancy_url) VALUES (%s, %s, %s, %s);',
+                    'INSERT INTO vacancies (organization_id, vacancy_title, salary_from, vacancy_url) VALUES '
+                    '(%s, %s, %s, %s);',
                     (org_id, vacancy_title, salary_from, vacancy_url))
 
             org_id += 1
-
 
         conn.commit()
 
         cur.close()
         conn.close()
 
-    def get_companies_and_vacancies_count(self):
+    def get_companies_and_vacancies_count(self) -> list[dict]:
+        """
+        Возвращает список словарей с компаниями и количеством, предоставляемым ими вакансий
+        company_name и vacancies_count
+        """
+
         query = """
-SELECT 
+SELECT
 organizations.company_name,
 COUNT(vacancies.organization_id) AS vacancies_count
-FROM 
+FROM
 organizations
-LEFT JOIN 
+LEFT JOIN
 vacancies ON organizations.organization_id = vacancies.organization_id
-GROUP BY 
+GROUP BY
 organizations.organization_id, organizations.company_name
-ORDER BY 
+ORDER BY
 vacancies_count DESC;
 """
 
@@ -158,18 +172,23 @@ vacancies_count DESC;
 
         return companies
 
-    def get_all_vacancies(self):
+    def get_all_vacancies(self) -> list[dict]:
+        """
+        Возвращает список словарей со всеми вакансиями
+        company_name, vacancy_title, salary_from и vacancy_url
+        """
+
         query = """
 SELECT
 organizations.company_name,
 vacancies.vacancy_title,
 vacancies.salary_from,
 vacancies.vacancy_url
-FROM 
+FROM
 vacancies
-JOIN 
+JOIN
 organizations ON vacancies.organization_id = organizations.organization_id
-ORDER BY 
+ORDER BY
 salary_from;
 """
         conn = db.connect(
@@ -189,23 +208,26 @@ salary_from;
             vacancies.append({
                 "company_name": row[0],
                 "vacancy_title": row[1],
-                "salary_from": row[2],
+                "salary_from": int(row[2]),
                 "vacancy_url": row[3]
             })
 
-            print(f'{row[0]}, {row[1]}, Зарплата от {row[2]}, {row[3]}')
+            print(f'{row[0]}, {row[1]}, Зарплата от {int(row[2])}, {row[3]}')
 
         cur.close()
         conn.close()
 
         return vacancies
 
-    def get_avg_salary(self):
+    def get_avg_salary(self) -> float:
+        """
+        Возвращает среднюю зарплату по всем вакансиям
+        """
 
         query = """
-SELECT 
+SELECT
 AVG(salary_from) AS avg_from
-FROM 
+FROM
 vacancies
 """
         conn = db.connect(
@@ -219,14 +241,27 @@ vacancies
         cur.execute(query)
 
         result = cur.fetchone()
-        print(f'Средняя зарплата по всем вакансиям = {round(float(result[0]), 2)}р.')
+        if result is not None:
+            print(f'Средняя зарплата по всем вакансиям = {round(float(result[0]), 2)} р.')
+
+            cur.close()
+            conn.close()
+
+            return round(float(result[0]), 2)
+        else:
+            print('Средняя зарплата по всем вакансиям = 0 р.')
 
         cur.close()
         conn.close()
 
-        return round(float(result[0]), 2)
+        return 0
 
-    def get_vacancies_with_higher_salary(self):
+    def get_vacancies_with_higher_salary(self) -> list[dict]:
+        """
+        Возвращает список словарей с вакансиями, у которых зарплата выше средней
+        company_name, vacancy_title, salary_from и vacancy_url
+        """
+
         avg_salary = self.get_avg_salary()
 
         query = f"""
@@ -263,7 +298,12 @@ ORDER BY salary_from
 
         return vacancies
 
-    def get_vacancies_with_keyword(self, keyword):
+    def get_vacancies_with_keyword(self, keyword: str) -> list[dict]:
+        """
+        Возвращает список словарей с вакансиями, у которых в названии есть переданный keyword
+        company_name, vacancy_title, salary_from и vacancy_url
+        """
+
         query = """
 SELECT *
 FROM vacancies

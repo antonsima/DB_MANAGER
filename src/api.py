@@ -1,6 +1,5 @@
-from abc import ABC, abstractmethod
-from typing import Any
 import time
+from abc import ABC, abstractmethod
 
 import requests
 from requests import Response
@@ -10,15 +9,7 @@ class BaseHeadHunterAPI(ABC):
     """ Абстрактный класс для HeadHunterAPI """
 
     @abstractmethod
-    def get_companies_with_vacancies(self, keyword: str) -> list[dict]:
-        pass
-
-    @abstractmethod
-    def __get_response(self, url: str, headers: dict, params: dict) -> 'Response':
-        pass
-
-    @abstractmethod
-    def get_employer_id(self, company_name: str) -> str:
+    def get_companies_with_vacancies(self, companies_id: list[str]) -> dict:
         pass
 
 
@@ -36,7 +27,7 @@ class HeadHunterAPI(BaseHeadHunterAPI):
         self.__params: dict = {'employer_id': '', 'area': 113, 'page': 0, 'per_page': 100}
         self.__companies_with_vacancies: dict = {}
 
-    def _BaseHeadHunterAPI__get_response(self, url: str, headers: dict, params: dict) -> Any:
+    def _BaseHeadHunterAPI__get_response(self, url: str, headers: dict, params: dict) -> 'Response':
         """
         Получение экземпляра класса Response
         """
@@ -45,33 +36,11 @@ class HeadHunterAPI(BaseHeadHunterAPI):
 
         return response
 
-    def get_employer_id(self, company_name):
-        """ Поиск ID работодателя по названию компании """
-
-        url = 'https://api.hh.ru/employers'
-        params = {
-            'text': company_name,
-            'only_with_vacancies': 'true',
-            'per_page': 1
-        }
-
-        try:
-            response = requests.get(url, params=params)
-            response.raise_for_status()
-            data = response.json()
-
-            if data['items']:
-                print(data['items'][0]['id'])
-                return data['items'][0]['id']
-            return None
-        except requests.exceptions.RequestException as e:
-            print(f"Ошибка при запросе: {e}")
-            return None
-
     def get_companies_with_vacancies(self, companies_id: list[str]) -> dict:
         """
         Получение списка вакансий в виде словарей, где ключ - это компания,
-        а значение - это список вакансий этой компании
+        а значение - это список вакансий этой компании.
+        Принимает список строк с id компаний
         """
 
         for company_id in companies_id:
@@ -80,7 +49,9 @@ class HeadHunterAPI(BaseHeadHunterAPI):
             self.__params['page'] = 0
             response = self._BaseHeadHunterAPI__get_response(self.__url_vacancies, self.__headers, self.__params)
 
-            company_name = self._BaseHeadHunterAPI__get_response(f'{self.__url_employers}{company_id}', {}, {}).json()['name']
+            company_name = self._BaseHeadHunterAPI__get_response(f'{self.__url_employers}{company_id}',
+                                                                 {}, {}).json()[
+                'name']
 
             print(f'Попытка для {company_name} номер 1')
 
@@ -118,7 +89,7 @@ class HeadHunterAPI(BaseHeadHunterAPI):
             while self.__params.get('page') != 20:
                 response = self._BaseHeadHunterAPI__get_response(self.__url_vacancies, self.__headers, self.__params)
 
-                print(f'Попытка для {company_name} номер {self.__params.get('page') + 1}')
+                print(f'Попытка для {company_name} номер {self.__params['page'] + 1}')
 
                 if response.status_code == 200:
                     try:
@@ -134,7 +105,8 @@ class HeadHunterAPI(BaseHeadHunterAPI):
                     print('Ошибка 403')
                     time.sleep(5)
 
-                    response = self._BaseHeadHunterAPI__get_response(self.__url_vacancies, self.__headers, self.__params)
+                    response = self._BaseHeadHunterAPI__get_response(self.__url_vacancies, self.__headers,
+                                                                     self.__params)
 
                     try:
                         vacancies = response.json()['items']
