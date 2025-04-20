@@ -30,6 +30,8 @@ class BaseDBManager(ABC):
 
 
 class DBManager(BaseDBManager):
+    """ Класс для создания таблиц organizations и vacancies, и работы с ними"""
+
     def __init__(self, companies_with_vacancies: dict) -> None:
         self.organizations = companies_with_vacancies
         load_dotenv()
