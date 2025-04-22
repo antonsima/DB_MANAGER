@@ -2,11 +2,15 @@ from config import companies_id
 from src.api import HeadHunterAPI
 from src.database import DBManager
 
+
 if __name__ == '__main__':
     hh = HeadHunterAPI()
     companies_with_vacancies = hh.get_companies_with_vacancies(companies_id)
 
     db_manager = DBManager(companies_with_vacancies)
+
+    db_manager.create_organizations_table()
+    db_manager.create_vacancies_table()
 
     while True:
         answer = input('''
