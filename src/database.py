@@ -40,8 +40,8 @@ class DBManager(BaseDBManager):
         self.__user = os.getenv('USER')
         self.__password = os.getenv('PASSWORD')
 
-        # self.create_organizations_table()
-        # self.create_vacancies_table()
+        self.create_organizations_table()
+        self.create_vacancies_table()
 
     def create_organizations_table(self) -> None:
         """
