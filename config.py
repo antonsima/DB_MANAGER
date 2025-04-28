@@ -1,5 +1,1 @@
-import os
-
-JSON_DIR = os.path.join(os.path.dirname(__file__), "json")
-DATA_DIR = os.path.join(os.path.dirname(__file__), "data")
-TESTS_DIR = os.path.join(os.path.dirname(__file__), "tests")
+companies_id = ["1740", "64174", "2526975", "10317521", "3529", "78638", "80", "4591801", "2180", "41862"]

@@ -1,0 +1,129 @@
+import time
+from abc import ABC, abstractmethod
+
+import requests
+from requests import Response
+
+
+class BaseHeadHunterAPI(ABC):
+    """ Абстрактный класс для HeadHunterAPI """
+
+    @abstractmethod
+    def get_companies_with_vacancies(self, companies_id: list[str]) -> dict:
+        pass
+
+
+class HeadHunterAPI(BaseHeadHunterAPI):
+    """
+    Класс для работы с API HeadHunter
+    Класс Parser является родительским классом, который вам необходимо реализовать
+    """
+
+    def __init__(self) -> None:
+
+        self.__url_vacancies: str = 'https://api.hh.ru/vacancies'
+        self.__url_employers: str = 'https://api.hh.ru/employers/'
+        self.__headers: dict = {'User-Agent': 'HH-User-Agent'}
+        self.__params: dict = {'employer_id': '', 'area': 113, 'page': 0, 'per_page': 100}
+        self.__companies_with_vacancies: dict = {}
+
+    def _BaseHeadHunterAPI__get_response(self, url: str, headers: dict, params: dict) -> 'Response':
+        """
+        Получение экземпляра класса Response
+        """
+
+        response = requests.get(url, headers=headers, params=params)
+
+        return response
+
+    def get_companies_with_vacancies(self, companies_id: list[str]) -> dict:
+        """
+        Получение списка вакансий в виде словарей, где ключ - это компания,
+        а значение - это список вакансий этой компании.
+        Принимает список строк с id компаний
+        """
+
+        for company_id in companies_id:
+
+            self.__params['employer_id'] = company_id
+            self.__params['page'] = 0
+            response = self._BaseHeadHunterAPI__get_response(self.__url_vacancies, self.__headers, self.__params)
+
+            company_name = self._BaseHeadHunterAPI__get_response(f'{self.__url_employers}{company_id}',
+                                                                 {}, {}).json()[
+                'name']
+
+            print(f'Попытка для {company_name} номер 1')
+
+            if response.status_code == 200:
+                try:
+                    vacancies = response.json()['items']
+                except KeyError:
+                    print('KeyError')
+                    continue
+
+                if not vacancies:
+                    continue
+                self.__companies_with_vacancies[company_name] = vacancies
+                self.__params['page'] += 1
+            elif response.status_code == 403:
+                print('Ошибка 403')
+
+                time.sleep(5)
+
+                response = self._BaseHeadHunterAPI__get_response(self.__url_vacancies, self.__headers, self.__params)
+
+                try:
+                    vacancies = response.json()['items']
+                except KeyError:
+                    print('KeyError')
+                    continue
+                if not vacancies:
+                    continue
+                self.__companies_with_vacancies[company_name] = vacancies
+                self.__params['page'] += 1
+            else:
+                print('Неизвестный статус код')
+                continue
+
+            while self.__params.get('page') != 20:
+                response = self._BaseHeadHunterAPI__get_response(self.__url_vacancies, self.__headers, self.__params)
+
+                print(f'Попытка для {company_name} номер {self.__params['page'] + 1}')
+
+                if response.status_code == 200:
+                    try:
+                        vacancies = response.json()['items']
+                    except KeyError:
+                        print('KeyError')
+                        continue
+                    if not vacancies:
+                        break
+                    self.__companies_with_vacancies[company_name].extend(vacancies)
+                    self.__params['page'] += 1
+                elif response.status_code == 403:
+                    print('Ошибка 403')
+                    time.sleep(5)
+
+                    response = self._BaseHeadHunterAPI__get_response(self.__url_vacancies, self.__headers,
+                                                                     self.__params)
+
+                    try:
+                        vacancies = response.json()['items']
+                    except KeyError:
+                        print('KeyError')
+                        continue
+                    if not vacancies:
+                        break
+                    self.__companies_with_vacancies[company_name].extend(vacancies)
+                    self.__params['page'] += 1
+                else:
+                    break
+
+        return self.__companies_with_vacancies
+
+    @property
+    def companies_with_vacancies(self) -> dict:
+        """ Геттер для компаний с вакансиями """
+
+        return self.__companies_with_vacancies

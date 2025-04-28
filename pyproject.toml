@@ -9,11 +9,15 @@ readme = "README.md"
 python = "^3.12"
 requests = "^2.32.3"
 pytest = "^8.3.5"
+psycopg2 = "^2.9.10"
+dotenv = "^0.9.9"
 
 [tool.poetry.group.lint.dependencies]
 flake8 = "^7.1.1"
 isort = "^5.13.2"
 mypy = "^1.13.0"
+types-requests = "^2.32.0.20250328"
+types-psycopg2 = "^2.9.21.20250318"
 
 
 [tool.poetry.group.dev.dependencies]
